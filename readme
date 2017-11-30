@@ -1,0 +1,4 @@
+
+several files untouched yet: cli_listaddress.go, merkle_tree.go, merkle_tree_test.go
+
+//为什么方法接收者有的是Wallets,有的是*Wallets??? ???
