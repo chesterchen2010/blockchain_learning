@@ -52,15 +52,15 @@ func NewCoinbaseTX(to, data string) *Transaction {
 }
 
 //新建send交易
-func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transaction {
+func NewUTXOTransaction(wallet *Wallet, to string, amount int, UTXOSet *UTXOSet) *Transaction {
 	var inputs []TXInput
 	var outputs []TXOutput
 
-	wallets, err := NewWallets()
-	if err != nil {
-		log.Panic(err)
-	}
-	wallet := wallets.GetWallet(from)
+	// wallets, err := NewWallets()
+	// if err != nil {
+	// 	log.Panic(err)
+	// }
+	// wallet := wallets.GetWallet(from)
 	pubKeyHash := HashPubKey(wallet.PublicKey)
 	acc, validOutputs := UTXOSet.FindSpendableOutputs(pubKeyHash, amount)
 
@@ -82,6 +82,7 @@ func NewUTXOTransaction(from, to string, amount int, UTXOSet *UTXOSet) *Transact
 	}
 
 	// build a list of outputs
+	from := fmt.Sprintf("%s", wallet.GetAddress())
 	outputs = append(outputs, *NewTXOutput(amount, to))
 	if acc > amount {
 		outputs = append(outputs, *NewTXOutput(acc-amount, from)) // a change
@@ -107,16 +108,20 @@ func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transac
 		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
 		txCopy.Vin[inID].Signature = nil // 置空，just a double-check
 		txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash
-		txCopy.ID = txCopy.Hash()     //对tx拷贝作哈希
-		txCopy.Vin[inID].PubKey = nil //seems not necessary???
+		// txCopy.ID = txCopy.Hash()     //对tx拷贝作哈希
+		// txCopy.Vin[inID].PubKey = nil //seems not necessary???
 
-		r, s, err := ecdsa.Sign(rand.Reader, &privKey, txCopy.ID) //用私钥给tx拷贝的哈希签名
+		//十六进制表示，字母形式为小写 a-f
+		dataToSign := fmt.Sprintf("%x\n", txCopy) // ???
+
+		r, s, err := ecdsa.Sign(rand.Reader, &privKey, []byte(dataToSign)) //用私钥给tx拷贝的哈希签名
 		if err != nil {
 			log.Panic(err)
 		}
 		signature := append(r.Bytes(), s.Bytes()...)
 
 		tx.Vin[inID].Signature = signature
+		txCopy.Vin[inID].PubKey = nil
 	}
 }
 
@@ -148,14 +153,16 @@ func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
 		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
 		txCopy.Vin[inID].Signature = nil
 		txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash
-		txCopy.ID = txCopy.Hash()
-		txCopy.Vin[inID].PubKey = nil
+		// txCopy.ID = txCopy.Hash()
+		// txCopy.Vin[inID].PubKey = nil
 
 		r := big.Int{}
 		s := big.Int{}
 		sigLen := len(vin.Signature)
 		r.SetBytes(vin.Signature[:(sigLen / 2)])
 		s.SetBytes(vin.Signature[(sigLen / 2):])
+
+		dataToVerify := fmt.Sprintf("%x\n", txCopy)
 
 		x := big.Int{}
 		y := big.Int{}
@@ -164,9 +171,10 @@ func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
 		y.SetBytes(vin.PubKey[(keyLen / 2):])
 
 		rawPubKey := ecdsa.PublicKey{curve, &x, &y}
-		if ecdsa.Verify(&rawPubKey, txCopy.ID, &r, &s) == false {
+		if ecdsa.Verify(&rawPubKey, []byte(dataToVerify), &r, &s) == false {
 			return false
 		}
+		txCopy.Vin[inID].PubKey = nil
 	}
 	return true
 }
@@ -190,6 +198,20 @@ func (tx Transaction) Serialize() []byte {
 		log.Panic(err)
 	}
 	return encoded.Bytes()
+}
+
+// used in server.go
+// DeserializeTransaction deserializes a transaction
+func DeserializeTransaction(data []byte) Transaction {
+	var transaction Transaction
+
+	decoder := gob.NewDecoder(bytes.NewReader(data))
+	err := decoder.Decode(&transaction)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	return transaction
 }
 
 // String returns a human-readable representation of a transaction

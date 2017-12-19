@@ -5,9 +5,9 @@ import (
 	"strconv"
 )
 
-func (cli *CLI) printChain() {
+func (cli *CLI) printChain(nodeID string) {
 	// TODO: fix this
-	bc := NewBlockchain()
+	bc := NewBlockchain(nodeID)
 	defer bc.db.Close()
 
 	bci := bc.Iterator()
@@ -15,9 +15,11 @@ func (cli *CLI) printChain() {
 	for {
 		block := bci.Next()
 
-		fmt.Printf("Prev. hash: %x\n", block.PrevBlockHash)
+		fmt.Printf("============ Block %x ============\n", block.Hash)
+		fmt.Printf("Height: %d\n", block.Height)
+		fmt.Printf("Prev. block: %x\n", block.PrevBlockHash)
 		// fmt.Printf("Data: %s\n", block.Data)
-		fmt.Printf("Hash: %x\n", block.Hash)
+		// fmt.Printf("Hash: %x\n", block.Hash)
 		pow := NewProofOfWork(block)
 		fmt.Printf("PoW: %s\n", strconv.FormatBool(pow.Validate()))
 		fmt.Println()
