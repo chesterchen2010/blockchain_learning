@@ -37,13 +37,15 @@ func (u UTXOSet) Reindex() {
 	}
 
 	//gets all unspent outputs from blockchain
+	//UTXO map, key: txID, []byte, hex.EncodeToString(tx.ID)
+	//value: TXOutputs struct, contains array of TXOutput
 	UTXO := u.Blockchain.FindUTXO()
 
 	err = db.Update(func(tx *bolt.Tx) error {
 		b := tx.Bucket(bucketName)
 
 		for txID, outs := range UTXO {
-			key, err := hex.DecodeString(txID)
+			key, err := hex.DecodeString(txID) // decode to save to db
 			if err != nil {
 				log.Panic(err)
 			}
@@ -68,8 +70,8 @@ func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[s
 		c := b.Cursor()
 
 		for k, v := c.First(); k != nil; k, v = c.Next() {
-			txID := hex.EncodeToString(k)
-			outs := DeserializeOutputs(v)
+			txID := hex.EncodeToString(k) // encode to extract from db
+			outs := DeserializeOutputs(v) // TXOutputs struct
 
 			for outIdx, out := range outs.Outputs {
 				if out.IsLockedWithKey(pubKeyHash) && accumulated < amount {
@@ -83,6 +85,10 @@ func (u UTXOSet) FindSpendableOutputs(pubKeyHash []byte, amount int) (int, map[s
 	if err != nil {
 		log.Panic(err)
 	}
+	//unspentOutputs map
+	//key: txID 交易编号, property of TXInput
+	//value: []int, array of outIdx,
+	//outIdx is index of output in unspent output array, property of TXInput
 	return accumulated, unspentOutputs
 }
 

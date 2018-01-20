@@ -69,6 +69,7 @@ func NewUTXOTransaction(wallet *Wallet, to string, amount int, UTXOSet *UTXOSet)
 	}
 
 	// build a list of inputs
+	// outs is array of outIdx, see FindSpendableOutputs in utxo_set.go
 	for txid, outs := range validOutputs {
 		txID, err := hex.DecodeString(txid)
 		if err != nil {
@@ -97,6 +98,10 @@ func NewUTXOTransaction(wallet *Wallet, to string, amount int, UTXOSet *UTXOSet)
 }
 
 //用私钥给交易输入签名
+//The method takes a private key and a map of previous transactions.
+//As mentioned above, in order to sign a transaction,
+//we need to access the outputs referenced in the inputs of the transaction,
+//thus we need the transactions that store these outputs.
 func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transaction) {
 	if tx.IsCoinbase() {
 		return
@@ -107,12 +112,19 @@ func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transac
 	for inID, vin := range txCopy.Vin {
 		prevTx := prevTXs[hex.EncodeToString(vin.Txid)]
 		txCopy.Vin[inID].Signature = nil // 置空，just a double-check
+		//the old value of PubKey before set nil when trimming;
+		//and the new value of PubKey set with pubKeyHash here;
+		//TXInput中的outIdx序号是被引用的TXOutput在utxo的TXOutputs中的index，
+		//是对应tx的TXOutputs中被剔除了spent output后的部分，
+		//直接从prevTX的TXOutputs中用outIdx取出的TXOuput，
+		//与TXInput并不一定对应，这应该是有问题的；
 		txCopy.Vin[inID].PubKey = prevTx.Vout[vin.Vout].PubKeyHash
 		// txCopy.ID = txCopy.Hash()     //对tx拷贝作哈希
 		// txCopy.Vin[inID].PubKey = nil //seems not necessary???
 
 		//十六进制表示，字母形式为小写 a-f
-		dataToSign := fmt.Sprintf("%x\n", txCopy) // ???
+		//因为签名的对象规定必须是txCopy，所以才引入txCopy
+		dataToSign := fmt.Sprintf("%x\n", txCopy)
 
 		r, s, err := ecdsa.Sign(rand.Reader, &privKey, []byte(dataToSign)) //用私钥给tx拷贝的哈希签名
 		if err != nil {
@@ -121,7 +133,7 @@ func (tx *Transaction) Sign(privKey ecdsa.PrivateKey, prevTXs map[string]Transac
 		signature := append(r.Bytes(), s.Bytes()...)
 
 		tx.Vin[inID].Signature = signature
-		txCopy.Vin[inID].PubKey = nil
+		txCopy.Vin[inID].PubKey = nil //再次置空，防止PubKey参与到下一轮循环的运算
 	}
 }
 
@@ -144,7 +156,8 @@ func (tx *Transaction) TrimmedCopy() Transaction {
 }
 
 //检验某一交易中的所有input，如有一个不符即失败
-//即检验vin.Signature, vin.PubKey, txCopy.ID三者的关系
+//检验input.Signature和对应prevTX.outputs[input.Vout].PubKeyHash是否满足ecdsa签名验证规则，
+//这是tx.Sign方法的逆流程
 func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
 	txCopy := tx.TrimmedCopy()
 	curve := elliptic.P256()
@@ -162,6 +175,7 @@ func (tx *Transaction) Verify(prevTXs map[string]Transaction) bool {
 		r.SetBytes(vin.Signature[:(sigLen / 2)])
 		s.SetBytes(vin.Signature[(sigLen / 2):])
 
+		//因为验证的对象必须是txCopy，所以才引入txCopy
 		dataToVerify := fmt.Sprintf("%x\n", txCopy)
 
 		x := big.Int{}

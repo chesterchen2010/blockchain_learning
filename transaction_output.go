@@ -13,6 +13,10 @@ type TXOutput struct {
 	PubKeyHash []byte
 }
 
+type TXOutputs struct {
+	Outputs []TXOutput
+}
+
 //给交易输出上锁（将交易输出与公钥地址关联）
 func (out *TXOutput) Lock(address []byte) {
 	pubKeyHash := Base58Decode(address)
@@ -29,10 +33,6 @@ func NewTXOutput(value int, address string) *TXOutput {
 	txo := &TXOutput{value, nil}
 	txo.Lock([]byte(address))
 	return txo
-}
-
-type TXOutputs struct {
-	Outputs []TXOutput
 }
 
 func (outs TXOutputs) Serialize() []byte {

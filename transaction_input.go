@@ -5,7 +5,7 @@ import "bytes"
 //交易输入
 type TXInput struct {
 	Txid []byte //// ID of such transaction
-	Vout int    // an index of an output in the transaction
+	Vout int    // an index of an output in unspent output array
 	// ScriptSig string
 	Signature []byte
 	PubKey    []byte

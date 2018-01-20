@@ -6,7 +6,7 @@ import (
 )
 
 func (cli *CLI) printChain(nodeID string) {
-	// TODO: fix this
+	// TODO: fix this  ... what to fix???
 	bc := NewBlockchain(nodeID)
 	defer bc.db.Close()
 
@@ -22,6 +22,9 @@ func (cli *CLI) printChain(nodeID string) {
 		// fmt.Printf("Hash: %x\n", block.Hash)
 		pow := NewProofOfWork(block)
 		fmt.Printf("PoW: %s\n", strconv.FormatBool(pow.Validate()))
+		for _, tx := range block.Transactions {
+			fmt.Println(tx)
+		}
 		fmt.Println()
 
 		if len(block.PrevBlockHash) == 0 {

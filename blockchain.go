@@ -120,8 +120,8 @@ func (bc *Blockchain) FindTransaction(ID []byte) (Transaction, error) {
 }
 
 /*
-  在当前tx的ouputs中寻找utxo，
-  就是需要检索上一个tx的inputs(从尾端开始遍历，且每个block里只包含一个tx)
+  注意：在当前tx的ouputs中寻找utxo，
+  就是需要检索上一个tx的inputs(从尾端开始遍历)
 */
 func (bc *Blockchain) FindUTXO() map[string]TXOutputs {
 	// var unspentTXs []Transaction
@@ -168,6 +168,7 @@ func (bc *Blockchain) FindUTXO() map[string]TXOutputs {
 					spentTXOs[inTxID] = append(spentTXOs[inTxID], in.Vout)
 					//其实就是把int类型添加入[]int
 					//in.Vout: index of output in the tx
+					fmt.Println("referenced output found:%s", in.Txid)
 				}
 			}
 		}
